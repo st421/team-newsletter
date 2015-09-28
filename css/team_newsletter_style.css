@@ -1,0 +1,13 @@
+.wrap {
+	width:900px;
+}
+table.widefat {
+	width:900px;
+}
+td.delete {
+	background:url(deletesign.gif) no-repeat 0 5px;
+	cursor:pointer;
+}
+textarea {
+	width:900px;
+}
