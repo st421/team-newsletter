@@ -1,7 +1,7 @@
 <?php  
 /*
     Plugin Name: Team Newsletter
-    Plugin URI: http://susanltyler.com 
+    Plugin URI: https://github.com/st421/team-newsletter
     Description: A plugin that simply emails a subscriber list when you post to your wordpress blog.
     Author: S. Tyler 
     Version: 1.0 
@@ -35,7 +35,7 @@ function team_newsletter_admin_actions() {
 
 function team_newsletter_admin() {  
 	wp_register_style('teamNewsletterStyle', plugins_url('team_newsletter_style.css', __FILE__) );
-        include('team_newsletter_admin_page.php');
+  include('team_newsletter_admin_page.php');
 }
 
 /*
