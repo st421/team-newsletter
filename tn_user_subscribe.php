@@ -1,8 +1,11 @@
+<?php wp_enqueue_style('bootstrap'); ?>
 <?php wp_enqueue_style('tn-style'); ?>
+<?php wp_enqueue_script('jquery'); ?>
 <?php $nonce = wp_create_nonce("tn_nonce_subscribe"); ?>
 <script>
+var ajaxurl = "<?php echo admin_url('admin-ajax.php'); ?>";
 jQuery(document).ready(function(){
-  jQuery('#user_subscribe').click(function(){
+  jQuery('#submit_form').click(function(){
     var data = {
       'action':'user_subscribe', 
       'name':jQuery('#name').val(), 
@@ -11,11 +14,12 @@ jQuery(document).ready(function(){
     };
 		jQuery.post(ajaxurl, data, function(response) {
   		jQuery("#successful_subscription").html(response);
-  		jQuery("#successful_subscription").fadeIn("fast");
   		jQuery("#user_subscribe_form").fadeOut("slow");
+  		jQuery("#successful_subscription").fadeIn("fast");
 		});
 		return false;
 	});
 });
 </script>
-<?php echo tn_subscribe_form(); ?>
+<?php tn_subscribe_form(); ?>
+<div id="successful_subscription"></div>

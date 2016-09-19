@@ -1,28 +1,12 @@
-<div class="wrap">
-<?php wp_enqueue_style('teamNewsletterStyle'); ?>
-<?php team_newsletter_admin_remove_contact(); ?>
+<?php wp_enqueue_style('bootstrap'); ?>
+<?php wp_enqueue_style('tn-style'); ?>
 <h1>Team Newsletter Plugin</h1>
-<h2>Miscellaneous Settings</h2>
-<h4>Set Subject Tagline</h4>
-<p>If you want your emails to have a "tagline" displayed in the subject of the email, enter it here. The subject of the email will be displayed as "_Tagline_: Title of Blog Post". For example, if your blog is about cooking, you might want your tagline to be "Amazing Recipes" in which case the subject line of the email might be "Amazing Recipes: World's Best Mac 'n Cheese". If you don't want a tagline, don't enter one!</p>
-<p>Your current tag is: 
-<?php $tag = team_newsletter_get_tagline(); if($tag) { echo $tag; } else { echo "Tag not yet set."; } ?>
-</p>
-<?php team_newsletter_set_subject_tag(); ?>
-<h4>Set FROM email:</h4>
-<p>By default, the "email from" (i.e. the email it will appear your newsletter comes from) comes from the server your blog is running on...if you want your personal email/name or some other name/email to be displayed, enter it here.</p>
-<?php team_newsletter_set_email_from(); ?>
-<h4>Set sign up confirmation message:</h4>
-<p>If you want a message to be sent when a user signs up for email updates, please enter a message body here. If nothing is entered, there will be no confirmation email. Otherwise, the message will say "Thank you, [name], for registering for our email updates." and then your message.</p>
-<p>Your current message is: 
-<?php $rm = team_newsletter_get_rm(); if($rm) { echo $rm; } else { echo "Message not yet set."; } ?>
-</p>
-<?php team_newsletter_set_rm(); ?>
+<h2>Settings</h2>
+<?php tn_display_settings(); ?>
 <h2>Manage Subscribers</h2>
-<h4>Current subscriber count:</h4>
-<?php team_newsletter_get_subscriber_count(); ?>
-<h4>Current subscriber list:</h4>
-<?php team_newsletter_echo_contact_list(); ?>
+<h3>Current subscriber count: <?php tn_subscriber_count(); ?></h3>
+<h3>Current subscriber list:</h3>
+<?php tn_display_contacts(); ?>
 <h4>Manually add email subscribers:</h4>
 <p>You can manually add subscribers here (you will probably only use this if you already have a mailing list but wish to transfer it to wordpress). Enter as Name &ltemail&gt or email alone separated by commas (like Joe Smith &ltjoesmith@example.com&gt, &ltjanesmith@example.com&gt, etc.).</p>
 <?php 
@@ -163,39 +147,4 @@ jQuery(document).ready(function(){
 Response message<p><textarea name="rm" id="rm" rows="4" cols="2" ></textarea></p>
 <input type='submit' name='action' id='submit_rm' value='submit' class="button-secondary"/></form>
 <div id='rm_submitted'></div>
-<?php
-}
-
-function team_newsletter_get_tagline() {
-	global $wpdb, $tn_settings_table;
-	$result = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='subject_tag';");
-	$result = $result[0];
-	$result = $result->value;
-	return $result;
-}
-	
-function team_newsletter_get_subscriber_count() {
-	global $wpdb, $tn_contacts_table;
-	$result = $wpdb->get_results("SELECT COUNT(*) as the_count FROM " . $tn_contacts_table . ";");
-	$result = $result[0];
-	echo $result->the_count;
-}
-
-function team_newsletter_get_rm() {
-	global $wpdb, $tn_settings_table;
-	$result = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='response_message';");
-	$result = $result[0];
-	$result = $result->value;
-	return $result;
-}
-
-function team_newsletter_echo_contact_list() {
-	global $wpdb, $tn_contacts_table;
-	$contacts = $wpdb->get_results("SELECT * FROM " . $tn_contacts_table . ";");
-	echo '<table class="widefat"><thead><tr><th>Name</th><th>Email</th><th>Delete?</th></tr><tbody>';
-	foreach($contacts as $contact) {
-		echo '<tr class="contact"><td>' . $contact->name . '</td><td class="email_span">' . $contact->email . '</td><td class="delete"></td></tr>';
-	}
-	echo '</tbody></table>';
-}
-?></div>
+<?php } ?>
