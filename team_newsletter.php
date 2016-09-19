@@ -28,18 +28,18 @@ register_deactivation_hook(__FILE__, 'tn_uninstall');
 
 add_shortcode('user_subscribe_form', 'tn_user_subscribe');
 add_shortcode('user_unsubscribe_form', 'tn_user_unsubscribe');
-
-add_action('admin_menu','tn_admin_setup'); 
 add_action('wp_ajax_user_subscribe', 'tn_add_contact');
 add_action('wp_ajax_nopriv_user_subscribe', 'tn_add_contact'); 
-add_action('publish_post','team_newsletter_email_post');  
-add_action('post_submitbox_misc_actions', 'set_email_post_status');
+add_action('wp_ajax_user_unsubscribe', 'tn_remove_contact');
+add_action('wp_ajax_nopriv_user_unsubscribe', 'tn_remove_contact');
 
+add_action('publish_post','tn_process_post');  
+add_action('post_submitbox_misc_actions', 'tn_display_email_post_form');
+
+add_action('admin_menu','tn_admin_setup'); 
 add_action('wp_ajax_tn_save_setting', 'tn_save_setting');
-add_action('wp_ajax_admin_add_contacts', 'team_newsletter_add_contacts'); 
-add_action('wp_ajax_user_unsubscribe', 'team_newsletter_remove_contact');
-add_action('wp_ajax_nopriv_user_unsubscribe', 'team_newsletter_remove_contact');
-add_action('wp_ajax_admin_remove_contact', 'team_newsletter_admin_delete_user'); 
+add_action('wp_ajax_tn_delete_subscriber', 'tn_delete_subscriber'); 
+add_action('wp_ajax_admin_add_contacts', 'tn_add_contacts'); 
 
 /*
  * Upon installation of the plugin, create tables
@@ -113,6 +113,20 @@ function tn_add_contact() {
 	die();		
 }
 
+function tn_remove_contact() {
+	check_ajax_referer('tn_nonce_unsubscribe');
+	global $contacts_table, $contacts_params;
+	$email = $_POST['email'];
+	$subscriber = get_item_by_param($contacts_table, 'email', $email);
+	$id = get_object_vars($subscriber)['id'];
+	if(delete_table_item($contacts_table, ['id'=>$id])) {
+		echo "The email " . $email . " was successfully removed from the mailing list.";
+	} else {
+		echo "The email " . $email . " was not found in our system.";
+	}
+	die();	
+}
+
 function tn_display_settings() {
 	global $settings_table, $settings_params;
 	echo get_settings_table($settings_table, $settings_params, "tn_settings", "name", "tn-edit-setting");
@@ -139,183 +153,54 @@ function tn_save_setting() {
 	die();
 }
 
-function team_newsletter_save_email_from() {
-	check_ajax_referer('tn_nonce_4');
-	global $wpdb, $tn_settings_table;
-	$email_from = $_POST['email_from'];
-	$name_from = $_POST['name_from'];
-	$wpdb->query("UPDATE " . $tn_settings_table . " SET value='" . $email_from . "' WHERE name='email_from';");
-	$wpdb->query("UPDATE " . $tn_settings_table . " SET value='" . $name_from . "' WHERE name='name_from';");
-	echo "Your 'email from' has been updated!";
+function tn_delete_subscriber() {
+	check_ajax_referer('tn_nonce_del','security');
+	global $contacts_table;
+	delete_table_item($contacts_table, $_POST);
 	die();
 }
 
-function team_newsletter_save_rm() {
-	check_ajax_referer('tn_nonce_6');
-	global $wpdb, $tn_settings_table;
-	$rm = $_POST['rm'];
-	$wpdb->query("UPDATE " . $tn_settings_table . " SET value='" . $rm . "' WHERE name='response_message';");
-	echo "Your message has been updated!";
-	die();		
-}
-
-function team_newsletter_user_unsubscribe() {
-	$nonce = wp_create_nonce('tn_nonce_2');
-	$ajax_url = admin_url('admin-ajax.php');
-?>
-<script type='text/javascript'>
-<!--
-jQuery(document).ready(function(){
-	jQuery('#user_unsubscribe').click(function() {
-		jQuery.ajax({
-			type: "post",
-			url: '<?php echo $ajax_url; ?>',
-			data: {action: 'user_unsubscribe', remove_email: jQuery('#remove_email').val(), _ajax_nonce: '<?php echo $nonce; ?>' },
-			success: function(data){ 
-				jQuery("#successful_unsubscribe").html(data);
-				jQuery("#successful_unsubscribe").fadeIn("fast");
-				jQuery("#user_unsubscribe_form").fadeOut("slow");
-			}
-		});
-		return false;
-	})
-})
--->
-</script>
-<form method='POST' id='user_unsubscribe_form'>
-<input type='text' name='remove_email' id='remove_email' value="Email"/></br>
-<input type='submit' name='action' id='user_unsubscribe' value='SUBMIT'/>
-</form>
-<div id='successful_unsubscribe'></div>
-<?php
-}
-
-function team_newsletter_remove_contact() {
-	check_ajax_referer('tn_nonce_2');
-	$email = $_POST['remove_email'];
-	if(team_newsletter_delete_user_data($email)) {
-		echo "The email " . $email . " was successfully removed from the mailing list.";
-	} else {
-		echo "The email " . $email . " was not found in our system.";
-	}
-	die();	
-}
-
-function team_newsletter_add_contacts() {
-	check_ajax_referer('tn_nonce_5');
+function tn_add_contacts() {
+	$nonce = wp_create_nonce('tn_nonce_add');
 	$invalid_emails = '';
-	$emails = $_POST['emails'];
-	$emails = explode(',',$emails);
-	foreach($emails as $person) {
-		$person = explode(' ',$person);
-		$length = sizeof($person);
+	$subscribers = sanitize_text_field($_POST['emails']);
+	$subscribers = explode(',',$emails);
+	foreach($subscribers as $subscriber) {
+		$subscriber = explode(' ',$subscriber);
+		$length = sizeof($subscriber);
 		$name = '';
+		$email = '';
 		switch ($length) {
 			case 1:
-  			$email = substr($person[0],1,-1);
+  			$email = substr($subscriber[0],1,-1);
   			break;
 			case 2:
-			$name = $person[0];
-  			$email = substr($person[1],1,-1);
+				$name = $subscriber[0];
+  			$email = substr($subscriber[1],1,-1);
   			break;
 			default:
-  			$name = $person[0];
+  			$name = $subscriber[0];
   			for($i=1;$i<$length-1;$i++) {
-  				$name .= " " . $person[$i];
+  				$name .= " " . $subscriber[$i];
   			}
-  			$email = substr($person[$length-1],1,-1);
+  			$email = substr($subscriber[$length-1],1,-1);
 		}
-		if(!team_newsletter_validate_email($email)) {
+		if(!tn_validate_email($email)) {
 			$invalid_emails .= $name . ' &lt;' . $email . '&rt;</br>';
 		} else {
-			team_newsletter_save_user_data(mysql_real_escape_string($name),mysql_real_escape_string($email));
+			global $contacts_table, $contacts_params;
+			if(!save_table_item($contacts_table,$contacts_params,["name"=>$name, "email"=>$email])) {
+				$invalid_emails .= $name . ' &lt;' . $email . '&rt;</br>';
+			}
 		}
 	}
-	if($invalid_emails == '') {
-		echo "Your contacts were successfully added to the mailing list!</br>";
+	if(empty($invalid_emails)) {
+		echo "Your contacts were successfully added to the mailing list!";
 	} else {
 		echo "The following emails were invalid and were not added to the mailing list:</br>";
 		echo $invalid_emails;
 	}
 	die();		
-}
-
-function team_newsletter_admin_delete_user() {
-	$email = $_POST['email_to_delete'];
-	team_newsletter_delete_user_data($email);
-	die();
-}
-
-function team_newsletter_save_user_data($name, $email) {
-	global $wpdb, $tn_contacts_table;
-	$query = "INSERT INTO " . $tn_contacts_table . " (name, email) VALUES ('" . $name . "','" . $email . "');";
-	if($wpdb->query($query)) return 1; else return 0;
-}
-
-function team_newsletter_delete_user_data($email) {
-	global $wpdb, $tn_contacts_table;
-	$query = "DELETE FROM " . $tn_contacts_table . " WHERE email='" . $email . "';";
-	if($wpdb->query($query)) return 1; else return 0;
-}
-
-function set_email_post_status() {
-	global $post;
-	$category = get_the_category($post->id); 
-	$category = $category[0]->cat_name;
-    	if(get_post_type($post) == 'post' && $category == 'News')  {
-    		if($post->post_status == 'publish') {
-    			echo '<div class="misc-pub-section">Email this post to subscribers?<p><input type="radio" name="email_post" value="Yes"> Yes&nbsp<input type="radio" name="email_post" value="No" checked> No</p></div>';
-		} else {
-    			echo '<div class="misc-pub-section">Email this post to subscribers?<p><input type="radio" name="email_post" value="Yes" checked> Yes&nbsp<input type="radio" name="email_post" value="No"> No</p></div>';
-		}
-	}
-}
-
-function team_newsletter_get_contact_list() {
-	global $wpdb, $tn_contacts_table;
-	return $wpdb->get_results("SELECT name,email FROM " . $tn_contacts_table . ";");
-}
-
-function team_newsletter_email_post() {
-	$email_post = $_POST['email_post'];
-	if($email_post == 'Yes') {
-		global $wpdb, $tn_settings_table;
-		$name_from = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='name_from';");
-		$name_from = $name_from[0];
-		$name_from = $name_from->value;
-		$email_from = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='email_from';");
-		$email_from = $email_from[0];
-		$email_from = $email_from->value;
-		$headers = '';
-		if($email_from != '0' && $name_from != '0') {
-			$headers = "Reply-To: " . $name_from . " <" . $email_from . ">\r\n"; 
-  			$headers .= "Return-Path: " . $name_from . " <" . $email_from . ">\r\n";
-  			$headers .= "From: " . $name_from . " <" . $email_from . ">\r\n";
-		}
-		$headers .= 'MIME-Version: 1.0' . "\r\n";
-		$headers .= 'Content-type: text/html; charset=utf-8' . "\r\n";
-		$headers .= "X-Priority: 3\r\n";
-  		$headers .= "X-Mailer: PHP". phpversion() ."\r\n";
-		$subject = stripslashes($_POST["post_title"]);
-		$message = '<body>';
-		$message .= wpautop(stripslashes($_POST["post_content"]));
-		$page = get_page_by_title('Unsubscribe');
-		$unsubscribe_info = "<h6>Click <a href='" . get_page_link($page->ID) . "'>here</a> to unsubscribe from our email updates.</h6>";
-		$message .= $unsubscribe_info;
-		$message = $message . '</body>';
-		$email_subject_tag = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='subject_tag';");
-		$email_subject_tag = $email_subject_tag[0];
-		$email_subject_tag = $email_subject_tag->value;	
-		if($email_subject_tag != '0') {
-			$subject = $email_subject_tag . ": " . $subject;
-		} 
-		$contacts = team_newsletter_get_contact_list();
-		foreach($contacts as $contact) {
-			$contact_list = $contact->name . ' <';
-			$contact_list .= $contact->email . '>,';
-			mail($contact_list,$subject,$message,$headers);
-		}
-	}
 }
 
 function tn_validate_email($email) {
@@ -326,46 +211,78 @@ function tn_subscriber_count() {
 	global $contacts_table;
 	echo get_table_count($contacts_table);
 }
-/*
-function team_newsletter_get_tagline() {
-	global $wpdb, $tn_settings_table;
-	$result = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='subject_tag';");
-	$result = $result[0];
-	$result = $result->value;
-	return $result;
-}
 
-function team_newsletter_get_rm() {
-	global $wpdb, $tn_settings_table;
-	$result = $wpdb->get_results("SELECT value FROM " . $tn_settings_table . " WHERE name='response_message';");
-	$result = $result[0];
-	$result = $result->value;
-	return $result;
-}*/
 function tn_display_contacts() {
 	global $contacts_table, $contacts_params;
 	echo get_admin_table($contacts_table, $contacts_params, "tn_contacts");
 }
 
+function tn_get_contact_list() {
+	global $contacts_table;
+	return get_all($contacts_table);
+}
+
+function tn_display_email_post_form() {
+	if(get_post_type($post) == 'post') {
+		global $post;
+		$category = get_the_category($post->id); 
+		$category = $category[0]->cat_name;
+		echo tn_get_checkbox_form($post->post_status == 'publish');
+	}
+}
+
+function tn_get_checkbox_form($published) {
+	$checkbox = '<div class="misc-pub-section">Email this post to subscribers?<p>';
+	$checkbox .= tn_get_checkbox_input("email_post", "Yes", !$published);
+	$checkbox .= tn_get_checkbox_input("email_post", "No", $published);
+	$checkbox .= '</p></div>';
+	return $checkbox;
+}
+
+function tn_get_checkbox_input($name, $value, $checked) {
+	$checkbox = ' <input type="radio" name="' . $name . '" value="' . $value . '"';
+	if($checked) {
+		$checkbox .= ' checked';
+	}
+	$checkbox .= '>' . $value;
+	return $checkbox;
+}
+
+function tn_process_post() {
+	$email_post = $_POST['email_post'];
+	if($email_post == 'Yes') {
+		global $settings_table;
+		$subject = stripslashes($_POST["post_title"]);
+		$message .= wpautop(stripslashes($_POST["post_content"]));
+		$subject_tag = get_item_by_param($settings_table,'name','tagline');
+		if(!empty($subject_tag)) {
+			$subject = $subject_tag . ": " . $subject;
+		} 
+		$contacts = tn_get_contact_list();
+		foreach($contacts as $contact) {
+			$address = $contact->name . ' <';
+			$address .= $contact->email . '>,';
+			send_email($subject,$message,$address);
+		}
+	}
+}
+
 function tn_send_confirmation_email($name, $email) {
 	global $settings_table;
-	$message = get_item_by_param($settings_table,'name','response_message');
-	$body = "<body>Thank you for registering for our email updates!\n";
+	$message = get_item_by_param($settings_table,'name','response');
+	$body = "Thank you for registering for our email updates!\n";
 	if($message) {
 		$body .= $message;
 	}		
-	$page = get_page_by_title('Unsubscribe');
-	$unsubscribe_info = "<h6>Click <a href='" . get_page_link($page->ID) . "'>here</a> to unsubscribe from our email updates.</h6>";
-	$body .= $unsubscribe_info . '</body>';
-	$subject = get_item_by_param($settings_table,'name','subject_tag');
+	$subject = get_item_by_param($settings_table,'name','tagline');
 	$contact = $name . ' <' . $email . '>';
 	send_email($subject,$body,$contact);
 }
 
 function send_email($subject, $body, $contacts) {
 	global $wpdb, $settings_table;
-	$name_from = get_item_by_param($settings_table,'name','name_from');
-	$email_from = get_item_by_param($settings_table,'name','email_from');
+	$name_from = get_item_by_param($settings_table,'name','name');
+	$email_from = get_item_by_param($settings_table,'name','email');
 	$headers = '';
 	if($email_from != '0' && $name_from != '0') {
 		$headers .= "Reply-To: " . $name_from . " <" . $email_from . ">\r\n"; 
@@ -376,7 +293,13 @@ function send_email($subject, $body, $contacts) {
 	$headers .= 'Content-type: text/html; charset=utf-8' . "\r\n";
 	$headers .= "X-Priority: 3\r\n";
 	$headers .= "X-Mailer: PHP". phpversion() ."\r\n";
+	$body = '<body>' . $body . get_unsubscribe_info() . '</body>';
 	mail($contacts,$subject,$body,$headers);
+}
+
+function get_unsubscribe_info() {
+	$page = get_page_by_title('Unsubscribe');
+	return "<h6>Click <a href='" . get_page_link($page->ID) . "'>here</a> to unsubscribe from our email updates.</h6>";
 }
 
 ?>
