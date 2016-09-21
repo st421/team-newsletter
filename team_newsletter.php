@@ -39,7 +39,7 @@ add_action('post_submitbox_misc_actions', 'tn_display_email_post_form');
 add_action('admin_menu','tn_admin_setup'); 
 add_action('wp_ajax_tn_save_setting', 'tn_save_setting');
 add_action('wp_ajax_tn_delete_subscriber', 'tn_delete_subscriber'); 
-add_action('wp_ajax_admin_add_contacts', 'tn_add_contacts'); 
+add_action('wp_ajax_tn_add_contacts', 'tn_add_contacts'); 
 
 /*
  * Upon installation of the plugin, create tables
@@ -85,6 +85,10 @@ function tn_admin() {
 
 function tn_user_subscribe() {
 	include('tn_user_subscribe.php');
+}
+
+function tn_user_unsubscribe() {
+	include('tn_user_unsubscribe.php');
 }
 
 function tn_edit_setting() {
@@ -163,8 +167,8 @@ function tn_delete_subscriber() {
 function tn_add_contacts() {
 	$nonce = wp_create_nonce('tn_nonce_add');
 	$invalid_emails = '';
-	$subscribers = sanitize_text_field($_POST['emails']);
-	$subscribers = explode(',',$emails);
+	$subscribers = $_POST['emails'];
+	$subscribers = explode(',',$subscribers);
 	foreach($subscribers as $subscriber) {
 		$subscriber = explode(' ',$subscriber);
 		$length = sizeof($subscriber);
@@ -284,7 +288,7 @@ function send_email($subject, $body, $contacts) {
 	$name_from = get_item_by_param($settings_table,'name','name');
 	$email_from = get_item_by_param($settings_table,'name','email');
 	$headers = '';
-	if($email_from != '0' && $name_from != '0') {
+	if(!empty($email_from) && !empty($name_from)) {
 		$headers .= "Reply-To: " . $name_from . " <" . $email_from . ">\r\n"; 
 	  	$headers .= "Return-Path: " . $name_from . " <" . $email_from . ">\r\n";
 	  	$headers .= "From: " . $name_from . " <" . $email_from . ">\r\n";

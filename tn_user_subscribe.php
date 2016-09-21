@@ -1,5 +1,4 @@
 <?php wp_enqueue_style('bootstrap'); ?>
-<?php wp_enqueue_style('tn-style'); ?>
 <?php wp_enqueue_script('jquery'); ?>
 <?php $nonce = wp_create_nonce("tn_nonce_subscribe"); ?>
 <script>
