@@ -1,7 +1,7 @@
 <?php wp_enqueue_style('jquery'); ?>
 <?php wp_enqueue_style('bootstrap'); ?>
 <?php $nonce = wp_create_nonce("tn_nonce_save"); ?>
-<script>  
+<script>
 jQuery(document).ready(function(){
 	jQuery('#submit_form').click(function(){ 
 		var data = {

@@ -1,16 +1,21 @@
 <?php  
 /*
-    Plugin Name: Team Newsletter
-    Plugin URI: https://github.com/st421/team-newsletter
-    Description: A plugin that emails a subscriber list when you post to your wordpress blog.
-    Author: S. Tyler 
-    Version: 1.0 
-    Author URI: http://susanltyler.com 
+  Plugin Name: Team Newsletter
+  Plugin URI: https://github.com/st421/team-newsletter
+  Description: A plugin that provides support for site subscribers, 
+  including a short code for a user sign-up form, subscriber management, and
+  optional emailing of WP posts to subscribers.
+  Author: S. Tyler 
+  Version: 2.0 
+  Author URI: http://susanltyler.com 
 */
 
 require_once(ABSPATH . '/wp-content/plugins/wp-plugin-helper/wp_display_helper.php');
+require_once('tn_mail_helper.php');
 
+// must be declared globally to work during install/uninstall
 global $contacts_table, $settings_table, $contacts_params, $settings_params, $wpdb;
+
 $contacts_table = $wpdb->prefix . "tn_contacts";
 $settings_table = $wpdb->prefix . "tn_settings";
 $contacts_params = array(
@@ -42,8 +47,8 @@ add_action('wp_ajax_tn_delete_subscriber', 'tn_delete_subscriber');
 add_action('wp_ajax_tn_add_contacts', 'tn_add_contacts'); 
 
 /*
- * Upon installation of the plugin, create tables
- * to store contacts/settings for the email list.
+  Upon installation of the plugin, create tables
+  to store contacts/settings for the email list.
  */
 function tn_install() {
 	global $wpdb, $contacts_table, $settings_table, $contacts_params, $settings_params;
@@ -52,6 +57,9 @@ function tn_install() {
 	init_settings();
 } 
 
+/*
+  Initializes various plugin settings in the database.
+ */
 function init_settings() {
 	global $settings_table, $settings_params;
 	save_table_item($settings_table, $settings_params, ["name"=>"tagline", "value"=>"", "description"=>'"tagline" for email subject. Will be displayed as "<tagline>: Title of Blog Post".']);
@@ -61,7 +69,7 @@ function init_settings() {
 }
 
 /* 
- * Upon uninstalling the plugin, remove the tables created. 
+  Upon uninstalling the plugin, remove the tables created. 
  */
 function tn_uninstall() {
 	global $contacts_table, $settings_table;
@@ -70,7 +78,7 @@ function tn_uninstall() {
 }
 
 /*
- * Registers style sheets and menu pages.
+  Registers style sheets and menu pages.
  */
 function tn_admin_setup() {  
 	wp_register_style('bootstrap', '//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css');
@@ -79,50 +87,101 @@ function tn_admin_setup() {
 	add_submenu_page(NULL, 'Edit setting', 'Edit setting', 'administrator', 'tn-edit-setting', 'tn_edit_setting');
 } 
 
+/*
+  Called by add_menu_page to provide main plugin menu page.
+ */
 function tn_admin() {  
 	include('tn_admin_page.php');  
 }
 
-function tn_user_subscribe() {
-	include('tn_user_subscribe.php');
-}
-
-function tn_user_unsubscribe() {
-	include('tn_user_unsubscribe.php');
-}
-
+/*
+  Admin page for editing plugin settings.
+ */
 function tn_edit_setting() {
 	include('tn_edit_setting.php');
 }
 
+/*
+  Shortcode function for displaying user subscription form.
+ */
+function tn_user_subscribe() {
+	include('tn_user_subscribe.php');
+}
+
+/*
+  Shortcode function for displaying user un-subscribe form.
+ */
+function tn_user_unsubscribe() {
+	include('tn_user_unsubscribe.php');
+}
+
+/*
+  Function that returns HTML string for subscription form.
+ */
 function tn_subscribe_form() {
 	global $contacts_params, $contacts_table;
 	echo get_basic_form($contacts_params, "user_subscribe_form");
 }
 
+/*
+  Function that returns HTML string for admin settings table.
+ */
+function tn_display_settings() {
+	global $settings_table, $settings_params;
+	echo get_settings_table($settings_table, $settings_params, "tn_settings", "name", "tn-edit-setting");
+}
+
+/*
+  Function that returns HTML string for setting editing form.
+ */
+function tn_edit_setting_form($id) {
+	global $settings_table;
+	$settings_params = array(new TableField("value","VARCHAR(255)"));
+	$setting = get_item_by_id($settings_table, $id);
+	$title = '<h2>' . $setting['name'] . '</h2>';
+	$title .= '<p>' . $setting['description'] . '</p>';
+	$title .= get_basic_form($settings_params, "setting_form", true, get_item_by_id($settings_table, $id));
+	echo $title;
+}
+
+/*
+  Function that returns HTML string for admin contacts table.
+ */
+function tn_display_contacts() {
+	global $contacts_table, $contacts_params;
+	echo get_admin_table($contacts_table, $contacts_params, "tn_contacts");
+}
+
+/*
+  Saves a new user passed by POST data (see tn_user_subscribe.php).
+ */
 function tn_add_contact() {
 	check_ajax_referer('tn_nonce_subscribe','security');
 	global $contacts_table, $contacts_params;
 	$email = $_POST['email'];
 	if(tn_validate_email($email)) {
 		if(save_table_item($contacts_table,$contacts_params,$_POST)) {
-			//tn_send_confirmation_email(); // TODO
+			$subscriber = get_item_by_param($contacts_table, 'email', $email);
+			tn_send_confirmation_email($subscriber['name'], $subscriber['email']);
 			echo "Success!";
 		} else {
-			echo "Email was not saved";
+			echo "Error; could not process subscribe request";
 		}
 	} else {
-		echo "Please try again with a valid email.";
+		echo "Please try again with a valid email";
 	}
 	die();		
 }
 
+/*
+  Deletes a user passed by POST data (see tn_user_unsubscribe.php).
+ */
 function tn_remove_contact() {
 	check_ajax_referer('tn_nonce_unsubscribe');
 	global $contacts_table, $contacts_params;
 	$email = $_POST['email'];
 	$subscriber = get_item_by_param($contacts_table, 'email', $email);
-	$id = get_object_vars($subscriber)['id'];
+	$id = $subscriber['id'];
 	if(delete_table_item($contacts_table, ['id'=>$id])) {
 		echo "The email " . $email . " was successfully removed from the mailing list.";
 	} else {
@@ -131,16 +190,9 @@ function tn_remove_contact() {
 	die();	
 }
 
-function tn_display_settings() {
-	global $settings_table, $settings_params;
-	echo get_settings_table($settings_table, $settings_params, "tn_settings", "name", "tn-edit-setting");
-}
-
-function tn_edit_setting_form($id) {
-	global $settings_table, $settings_params;
-	echo get_basic_form($settings_params, "setting_form", true, get_item_by_id($settings_table, $id));
-}
-
+/*
+  Saves a setting passed by POST data (see tn_edit_settings.php).
+ */
 function tn_save_setting() {
 	check_ajax_referer('tn_nonce_save','security');
 	global $settings_table, $settings_params;
@@ -157,6 +209,9 @@ function tn_save_setting() {
 	die();
 }
 
+/*
+  Deletes a setting passed by POST data (see tn_admin_page.php).
+ */
 function tn_delete_subscriber() {
 	check_ajax_referer('tn_nonce_del','security');
 	global $contacts_table;
@@ -164,8 +219,11 @@ function tn_delete_subscriber() {
 	die();
 }
 
+/*
+  Adds users passed by POST data (see tn_admin_page.php).
+ */
 function tn_add_contacts() {
-	$nonce = wp_create_nonce('tn_nonce_add');
+	check_ajax_referer('tn_nonce_add','security');
 	$invalid_emails = '';
 	$subscribers = $_POST['emails'];
 	$subscribers = explode(',',$subscribers);
@@ -211,26 +269,9 @@ function tn_validate_email($email) {
 	return filter_var($email,FILTER_VALIDATE_EMAIL);
 }
 
-function tn_subscriber_count() {
-	global $contacts_table;
-	echo get_table_count($contacts_table);
-}
-
-function tn_display_contacts() {
-	global $contacts_table, $contacts_params;
-	echo get_admin_table($contacts_table, $contacts_params, "tn_contacts");
-}
-
-function tn_get_contact_list() {
-	global $contacts_table;
-	return get_all($contacts_table);
-}
-
 function tn_display_email_post_form() {
 	if(get_post_type($post) == 'post') {
 		global $post;
-		$category = get_the_category($post->id); 
-		$category = $category[0]->cat_name;
 		echo tn_get_checkbox_form($post->post_status == 'publish');
 	}
 }
@@ -271,39 +312,14 @@ function tn_process_post() {
 	}
 }
 
-function tn_send_confirmation_email($name, $email) {
-	global $settings_table;
-	$message = get_item_by_param($settings_table,'name','response');
-	$body = "Thank you for registering for our email updates!\n";
-	if($message) {
-		$body .= $message;
-	}		
-	$subject = get_item_by_param($settings_table,'name','tagline');
-	$contact = $name . ' <' . $email . '>';
-	send_email($subject,$body,$contact);
+function tn_get_contact_list() {
+	global $contacts_table;
+	return get_all($contacts_table);
 }
 
-function send_email($subject, $body, $contacts) {
-	global $wpdb, $settings_table;
-	$name_from = get_item_by_param($settings_table,'name','name');
-	$email_from = get_item_by_param($settings_table,'name','email');
-	$headers = '';
-	if(!empty($email_from) && !empty($name_from)) {
-		$headers .= "Reply-To: " . $name_from . " <" . $email_from . ">\r\n"; 
-	  	$headers .= "Return-Path: " . $name_from . " <" . $email_from . ">\r\n";
-	  	$headers .= "From: " . $name_from . " <" . $email_from . ">\r\n";
-	}
-	$headers .= 'MIME-Version: 1.0' . "\r\n";
-	$headers .= 'Content-type: text/html; charset=utf-8' . "\r\n";
-	$headers .= "X-Priority: 3\r\n";
-	$headers .= "X-Mailer: PHP". phpversion() ."\r\n";
-	$body = '<body>' . $body . get_unsubscribe_info() . '</body>';
-	mail($contacts,$subject,$body,$headers);
-}
-
-function get_unsubscribe_info() {
-	$page = get_page_by_title('Unsubscribe');
-	return "<h6>Click <a href='" . get_page_link($page->ID) . "'>here</a> to unsubscribe from our email updates.</h6>";
+function tn_subscriber_count() {
+	global $contacts_table;
+	echo get_table_count($contacts_table);
 }
 
 ?>
