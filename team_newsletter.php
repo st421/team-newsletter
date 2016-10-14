@@ -20,10 +20,10 @@ $contacts_table = $wpdb->prefix . "tn_contacts";
 $settings_table = $wpdb->prefix . "tn_settings";
 $contacts_params = array(
   new TableField("name","VARCHAR(100)"),
-  new TableField("email","VARCHAR(100)")
+  new TableField("email","VARCHAR(100)",true)
 );
 $settings_params = array(
-  new TableField("name","VARCHAR(50)"),
+  new TableField("name","VARCHAR(50)",true),
   new TableField("value","VARCHAR(255)"),
   new TableField("description","VARCHAR(255)")
 );
@@ -55,6 +55,8 @@ function tn_install() {
 	create_table($contacts_table,$contacts_params);
 	create_table($settings_table,$settings_params);
 	init_settings();
+	create_page('Subscribe','subscribe',"[user_subscribe_form]");
+	create_page('Unsubscribe','unsubscribe',"[user_unsubscribe_form]");
 } 
 
 /*
@@ -62,10 +64,10 @@ function tn_install() {
  */
 function init_settings() {
 	global $settings_table, $settings_params;
-	save_table_item($settings_table, $settings_params, ["name"=>"tagline", "value"=>"", "description"=>'"tagline" for email subject. Will be displayed as "<tagline>: Title of Blog Post".']);
-	save_table_item($settings_table, $settings_params, ["name"=>"email", "value"=>"", "description"=>'By default, the "email from" (i.e. the email your newsletter comes from) is the server your blog is running on; if you want a different email to appear instead, update this setting.']);
-	save_table_item($settings_table, $settings_params, ["name"=>"name", "value"=>"", "description"=>'The name displayed with the "email from" setting.']);
-	save_table_item($settings_table, $settings_params, ["name"=>"response", "value"=>"", "description"=>'If you want a confirmation email to be sent when a user signs up for email updates, please enter a message body here. If nothing is entered, there will be no confirmation email. Otherwise, the message will say "Thank you for registering for our email updates." and then your message.']);
+	save_table_item($settings_table, $settings_params, ["name"=>"tagline", "value"=>"", "description"=>"'tagline' for email subject. Will be displayed as 'Tagline: Title of Blog Post'."]);
+	save_table_item($settings_table, $settings_params, ["name"=>"email", "value"=>"", "description"=>"By default, the 'email from' (i.e. the email your newsletter comes from) is the server your blog is running on; if you want a different email to appear instead, update this setting."]);
+	save_table_item($settings_table, $settings_params, ["name"=>"name", "value"=>"", "description"=>"The name displayed with the 'email from' setting."]);
+	save_table_item($settings_table, $settings_params, ["name"=>"response", "value"=>"", "description"=>"If you want a confirmation email to be sent when a user signs up for email updates, please enter a message body here. If nothing is entered, there will be no confirmation email. Otherwise, the message will say 'Thank you for registering for our email updates.' and then your message."]);
 }
 
 /* 
