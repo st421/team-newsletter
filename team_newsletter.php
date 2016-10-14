@@ -179,7 +179,7 @@ function tn_add_contact() {
   Deletes a user passed by POST data (see tn_user_unsubscribe.php).
  */
 function tn_remove_contact() {
-	check_ajax_referer('tn_nonce_unsubscribe');
+	check_ajax_referer('tn_nonce_unsubscribe','security');
 	global $contacts_table, $contacts_params;
 	$email = $_POST['email'];
 	$subscriber = get_item_by_param($contacts_table, 'email', $email);
@@ -190,6 +190,13 @@ function tn_remove_contact() {
 		echo "The email " . $email . " was not found in our system.";
 	}
 	die();	
+}
+
+function tn_delete_subscriber() {
+	check_ajax_referer('tn_nonce_del','security');
+	global $contacts_table;
+	delete_table_item($contacts_table, $_POST);
+	die();
 }
 
 /*
@@ -208,16 +215,6 @@ function tn_save_setting() {
 	} else {
 		echo "ERROR; setting not saved";
 	}
-	die();
-}
-
-/*
-  Deletes a setting passed by POST data (see tn_admin_page.php).
- */
-function tn_delete_subscriber() {
-	check_ajax_referer('tn_nonce_del','security');
-	global $contacts_table;
-	delete_table_item($contacts_table, $_POST);
 	die();
 }
 
