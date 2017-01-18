@@ -27,6 +27,7 @@ $settings_params = array(
   new TableField("value","VARCHAR(255)"),
   new TableField("description","VARCHAR(255)")
 );
+$settings_value_param = array(new TableField("value","VARCHAR(255)"));
 
 register_activation_hook(__FILE__,'tn_install'); 
 register_deactivation_hook(__FILE__, 'tn_uninstall');
@@ -67,7 +68,7 @@ function init_settings() {
 	save_table_item($settings_table, $settings_params, ["name"=>"tagline", "value"=>"", "description"=>"'tagline' for email subject. Will be displayed as 'Tagline: Title of Blog Post'."]);
 	save_table_item($settings_table, $settings_params, ["name"=>"email", "value"=>"", "description"=>"By default, the 'email from' (i.e. the email your newsletter comes from) is the server your blog is running on; if you want a different email to appear instead, update this setting."]);
 	save_table_item($settings_table, $settings_params, ["name"=>"name", "value"=>"", "description"=>"The name displayed with the 'email from' setting."]);
-	save_table_item($settings_table, $settings_params, ["name"=>"response", "value"=>"", "description"=>"If you want a confirmation email to be sent when a user signs up for email updates, please enter a message body here. If nothing is entered, there will be no confirmation email. Otherwise, the message will say 'Thank you for registering for our email updates.' and then your message."]);
+	save_table_item($settings_table, $settings_params, ["name"=>"response", "value"=>"", "description"=>"If you want a confirmation email to be sent when a user signs up for email updates, please enter a message body here. If blank, there will be no confirmation email."]);
 }
 
 /* 
@@ -137,12 +138,11 @@ function tn_display_settings() {
   Function that returns HTML string for setting editing form.
  */
 function tn_edit_setting_form($id) {
-	global $settings_table;
-	$settings_params = array(new TableField("value","VARCHAR(255)"));
+	global $settings_table, $settings_value_param;
 	$setting = get_item_by_id($settings_table, $id);
 	$title = '<h2>' . $setting['name'] . '</h2>';
 	$title .= '<p>' . $setting['description'] . '</p>';
-	$title .= get_basic_form($settings_params, "setting_form", true, get_item_by_id($settings_table, $id));
+	$title .= get_basic_form($settings_value_param, "setting_form", true, get_item_by_id($settings_table, $id));
 	echo $title;
 }
 
@@ -164,15 +164,15 @@ function tn_add_contact() {
 	if(tn_validate_email($email)) {
 		if(save_table_item($contacts_table,$contacts_params,$_POST)) {
 			$subscriber = get_item_by_param($contacts_table, 'email', $email);
-			tn_send_confirmation_email($subscriber['name'], $subscriber['email']);
-			echo "Success!";
+			//tn_send_confirmation_email($subscriber);
+			echo "Thank you for signing up; you'll hear from us soon!";
 		} else {
 			echo "Error; could not process subscribe request";
 		}
 	} else {
 		echo "Please try again with a valid email";
 	}
-	die();		
+	wp_die();		
 }
 
 /*
@@ -189,14 +189,14 @@ function tn_remove_contact() {
 	} else {
 		echo "The email " . $email . " was not found in our system.";
 	}
-	die();	
+	wp_die();	
 }
 
 function tn_delete_subscriber() {
 	check_ajax_referer('tn_nonce_del','security');
 	global $contacts_table;
 	delete_table_item($contacts_table, $_POST);
-	die();
+	wp_die();
 }
 
 /*
@@ -204,9 +204,9 @@ function tn_delete_subscriber() {
  */
 function tn_save_setting() {
 	check_ajax_referer('tn_nonce_save','security');
-	global $settings_table, $settings_params;
+	global $settings_table, $settings_value_param;
 	if(!empty($_POST['id'])) {
-		$success = update_table_item($settings_table,$settings_params,$_POST);
+		$success = update_table_item($settings_table,$settings_value_param,$_POST);
 	} else {
 		$success = save_table_item($settings_table,$settings_params,$_POST);
 	}
@@ -215,7 +215,7 @@ function tn_save_setting() {
 	} else {
 		echo "ERROR; setting not saved";
 	}
-	die();
+	wp_die();
 }
 
 /*
@@ -236,7 +236,7 @@ function tn_add_contacts() {
   			$email = substr($subscriber[0],1,-1);
   			break;
 			case 2:
-				$name = $subscriber[0];
+			$name = $subscriber[0];
   			$email = substr($subscriber[1],1,-1);
   			break;
 			default:
@@ -261,7 +261,7 @@ function tn_add_contacts() {
 		echo "The following emails were invalid and were not added to the mailing list:</br>";
 		echo $invalid_emails;
 	}
-	die();		
+	wp_die();		
 }
 
 function tn_validate_email($email) {
@@ -298,15 +298,13 @@ function tn_process_post() {
 		global $settings_table;
 		$subject = stripslashes($_POST["post_title"]);
 		$message .= wpautop(stripslashes($_POST["post_content"]));
-		$subject_tag = get_item_by_param($settings_table,'name','tagline');
+		$subject_tag = get_item_by_param($settings_table,'name','tagline')['value'];
 		if(!empty($subject_tag)) {
 			$subject = $subject_tag . ": " . $subject;
 		} 
 		$contacts = tn_get_contact_list();
 		foreach($contacts as $contact) {
-			$address = $contact->name . ' <';
-			$address .= $contact->email . '>,';
-			send_email($subject,$message,$address);
+			send_email($subject,$message,get_object_vars($contact));
 		}
 	}
 }
